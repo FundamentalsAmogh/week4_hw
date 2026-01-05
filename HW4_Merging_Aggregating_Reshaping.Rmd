@@ -1,0 +1,231 @@
+---
+title: An R Markdown document converted from "HW4_Merging_Aggregating_Reshaping.ipynb"
+output: html_document
+---
+
+# Homework 4: Merging, Aggregating, Reshaping
+
+**Author:** Amogh Guthur
+
+This notebook uses the 3 cleaned CIA World Factbook files from Homework 3 to:
+1. **Exercise 1** - Merge all 3 files into one
+2. **Exercise 2** - Aggregate by region
+3. **Exercise 3** - Reshape from wide to long format
+
+## Load the 3 CSV files from Homework 3
+
+```{r}
+# Load maternal mortality data from CSV
+maternal <- read.csv("maternal_mortality.csv")
+# Load infant mortality data from CSV
+infant <- read.csv("infant_mortality.csv")
+# Load life expectancy data from CSV
+life_exp <- read.csv("life_expectancy.csv")
+```
+
+```{r}
+# Check structure of each file
+str(maternal)
+str(infant)
+str(life_exp)
+```
+
+## Exercise 1: Merging
+
+Merge all 3 files into one file by country. Drop unneeded columns and rename as needed.
+
+```{r}
+# Rename columns for clarity before merging
+# Keep only country and the variable column from each dataset
+maternal_clean <- maternal[, c("country", "maternal_mortality_ratio")]
+# Rename variable column to shorter name
+names(maternal_clean)[2] <- "maternal_mortality"
+```
+
+```{r}
+# Keep only country and the variable column from infant data
+infant_clean <- infant[, c("country", "infant_mortality_rate")]
+# Rename variable column to shorter name
+names(infant_clean)[2] <- "infant_mortality"
+```
+
+```{r}
+# Keep country, variable, and region from life expectancy (region will be kept for final merge)
+life_exp_clean <- life_exp[, c("country", "life_expectancy_years", "region")]
+# Rename variable column to shorter name
+names(life_exp_clean)[2] <- "life_expectancy"
+```
+
+```{r}
+# Merge maternal and infant mortality by country
+merged_temp <- merge(maternal_clean, infant_clean, by = "country", all = TRUE)
+```
+
+```{r}
+# Merge with life expectancy to get final merged dataset with region
+merged_data <- merge(merged_temp, life_exp_clean, by = "country", all = TRUE)
+```
+
+```{r}
+# View first 10 rows of merged data
+head(merged_data, 10)
+```
+
+```{r}
+# Verify structure of merged data
+str(merged_data)
+```
+
+```{r}
+# Save merged data as CSV
+write.csv(merged_data, "merged_data.csv", row.names = FALSE)
+```
+
+```{r}
+# Verify the saved file by reading it back
+merged_verify <- read.csv("merged_data.csv")
+# Check structure to confirm it was saved correctly
+str(merged_verify)
+```
+
+## Exercise 2: Aggregating
+
+Aggregate the merged data by region using the mean function.
+
+```{r}
+# Remove rows with NA in region before aggregating
+merged_no_na <- merged_data[!is.na(merged_data$region), ]
+```
+
+```{r}
+# Aggregate maternal mortality by region using mean
+agg_maternal <- aggregate(maternal_mortality ~ region, data = merged_no_na, FUN = mean, na.rm = TRUE)
+```
+
+```{r}
+# Aggregate infant mortality by region using mean
+agg_infant <- aggregate(infant_mortality ~ region, data = merged_no_na, FUN = mean, na.rm = TRUE)
+```
+
+```{r}
+# Aggregate life expectancy by region using mean
+agg_life <- aggregate(life_expectancy ~ region, data = merged_no_na, FUN = mean, na.rm = TRUE)
+```
+
+```{r}
+# Merge all aggregated data together by region
+aggregated_data <- merge(agg_maternal, agg_infant, by = "region")
+# Add life expectancy to the aggregated data
+aggregated_data <- merge(aggregated_data, agg_life, by = "region")
+```
+
+```{r}
+# Round the aggregated values to 2 decimal places for readability
+aggregated_data$maternal_mortality <- round(aggregated_data$maternal_mortality, 2)
+aggregated_data$infant_mortality <- round(aggregated_data$infant_mortality, 2)
+aggregated_data$life_expectancy <- round(aggregated_data$life_expectancy, 2)
+```
+
+```{r}
+# View the aggregated data
+aggregated_data
+```
+
+```{r}
+# Verify structure of aggregated data
+str(aggregated_data)
+```
+
+```{r}
+# Save aggregated data as CSV
+write.csv(aggregated_data, "aggregated_data.csv", row.names = FALSE)
+```
+
+```{r}
+# Verify the saved file by reading it back
+agg_verify <- read.csv("aggregated_data.csv")
+# Check structure to confirm it was saved correctly
+str(agg_verify)
+```
+
+## Exercise 3: Reshaping
+
+Convert the merged data from wide format to long format.
+
+```{r}
+# Use reshape function to convert from wide to long format
+# The variable columns become rows
+long_data <- reshape(
+  merged_data,
+  # Specify columns to reshape from wide to long
+  varying = c("maternal_mortality", "infant_mortality", "life_expectancy"),
+  # Name for the new column containing variable names
+  v.names = "value",
+  # Name for the new column containing which variable it is
+  timevar = "variable",
+  # Labels for the variable column
+  times = c("maternal_mortality", "infant_mortality", "life_expectancy"),
+  # Direction of reshape
+  direction = "long"
+)
+```
+
+```{r}
+# Remove the id column created by reshape
+long_data$id <- NULL
+```
+
+```{r}
+# Reorder columns for better readability
+long_data <- long_data[, c("country", "region", "variable", "value")]
+```
+
+```{r}
+# Sort by country and variable
+long_data <- long_data[order(long_data$country, long_data$variable), ]
+```
+
+```{r}
+# Reset row names
+rownames(long_data) <- NULL
+```
+
+```{r}
+# View first 15 rows of long format data
+head(long_data, 15)
+```
+
+```{r}
+# Verify structure of long format data
+str(long_data)
+```
+
+```{r}
+# Save long format data as CSV
+write.csv(long_data, "long_data.csv", row.names = FALSE)
+```
+
+```{r}
+# Verify the saved file by reading it back
+long_verify <- read.csv("long_data.csv")
+# Check structure to confirm it was saved correctly
+str(long_verify)
+```
+
+## Summary
+
+### Files Created:
+1. `merged_data.csv` - All 3 datasets merged by country (wide format)
+2. `aggregated_data.csv` - Data aggregated by region using mean
+3. `long_data.csv` - Merged data reshaped to long format
+
+### Methods Used:
+- **Merging:** `merge()` function with `all = TRUE` for full outer join
+- **Aggregating:** `aggregate()` function with `FUN = mean`
+- **Reshaping:** `reshape()` function with `direction = "long"`
+
+```{r}
+# List all CSV files created
+list.files(pattern = "\\.csv$")
+```
+
